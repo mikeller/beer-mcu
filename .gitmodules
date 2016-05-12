@@ -1,3 +1,6 @@
 [submodule "nodemcu-firmware"]
 	path = nodemcu-firmware
 	url = https://github.com/mikeller/nodemcu-firmware.git
+[submodule "luatool"]
+	path = luatool
+	url = https://github.com/4refr0nt/luatool.git
