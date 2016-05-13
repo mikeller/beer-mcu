@@ -16,8 +16,10 @@ reboot_mcu:
 firmware:	firmware_build firmware_deploy
 
 firmware_build:
-		cd $(project_path)nodemcu-firmware; \
-                docker run --rm -ti -v $(project_path)nodemcu-firmware/:/opt/nodemcu-firmware -e "IMAGE_NAME=beer-mcu" -e "FLOAT_ONLY=1" mikeller/nodemcu-build
+		docker run --rm -ti -v $(project_path)nodemcu-firmware/:/opt/nodemcu-firmware -e "IMAGE_NAME=beer-mcu" -e "FLOAT_ONLY=1" mikeller/nodemcu-build
+
+nodemcu-firmware/bin/nodemcu_float_beer-mcu.bin:	nodemcu-firmware/app/include/user_version.h
+		docker run --rm -ti -v $(project_path)nodemcu-firmware/:/opt/nodemcu-firmware -e "IMAGE_NAME=beer-mcu" -e "FLOAT_ONLY=1" mikeller/nodemcu-build
 
 firmware_deploy:
 		nodemcu-firmware/tools/esptool.py write_flash 0x00000 nodemcu-firmware/bin/nodemcu_float_beer-mcu.bin
