@@ -1,24 +1,26 @@
 project_path := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
-.PHONY:		all lua reboot_mcu firmware firmware_build firmware_deploy
+.PHONY:		all lua firmware firmware_build firmware_deploy
+
 all:
 
-lua:		deploy/ds18b20.lua deploy/main.lua deploy/init.lua
+lua:		deploy/ds18b20.lua deploy/main.lua deploy/setup.lua deploy/init.lua
 
-deploy/main.lua:	main.lua
-		luatool/luatool/luatool.py -b 115200 -f main.lua && \
+deploy/setup.lua:	lua/setup.lua
+		luatool/luatool/luatool.py -b 115200 -f lua/setup.lua && \
+		touch deploy/setup.lua
+
+deploy/main.lua:	lua/main.lua
+		luatool/luatool/luatool.py -b 115200 -f lua/main.lua && \
 		touch deploy/main.lua
 
-deploy/init.lua:	init.lua
-		luatool/luatool/luatool.py -b 115200 -f init.lua && \
+deploy/init.lua:	lua/init.lua
+		luatool/luatool/luatool.py -b 115200 -f lua/init.lua && \
 		touch deploy/init.lua
 
 deploy/ds18b20.lua:	nodemcu-firmware/lua_modules/ds18b20/ds18b20.lua
 		luatool/luatool/luatool.py -b 115200 -f nodemcu-firmware/lua_modules/ds18b20/ds18b20.lua -c && \
 		touch deploy/ds18b20.lua
-
-reboot_mcu:
-		luatool/luatool/luatool.py -b 115200 -f empty.lua -r
 
 firmware:	firmware_build firmware_deploy
 

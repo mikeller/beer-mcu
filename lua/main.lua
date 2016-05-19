@@ -73,6 +73,8 @@ function setup()
   readTemp[2] = readDsTemp
 end
 
+dofile("setup.lua")
+
 setup()
 
 main_loop()
