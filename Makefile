@@ -2,7 +2,7 @@ project_path := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
 .PHONY:		all lua firmware firmware_build firmware_deploy
 
-all:
+all:		firmware lua
 
 lua:		deploy/ds18b20.lua deploy/main.lua deploy/setup.lua deploy/init.lua
 
