@@ -27,7 +27,7 @@ firmware:	firmware_build firmware_deploy
 firmware_build:	nodemcu-firmware/bin/nodemcu_float_beer-mcu.bin
 
 nodemcu-firmware/bin/nodemcu_float_beer-mcu.bin:	nodemcu-firmware/app/include/user_config.h nodemcu-firmware/app/include/user_modules.h nodemcu-firmware/app/include/user_version.h 
-		docker run --rm -ti -v $(project_path)nodemcu-firmware/:/opt/nodemcu-firmware -e "IMAGE_NAME=beer-mcu" -e "FLOAT_ONLY=1" mikeller/nodemcu-build
+		docker run --rm -ti -v $(project_path)nodemcu-firmware/:/opt/nodemcu-firmware -e "IMAGE_NAME=beer-mcu" -e "FLOAT_ONLY=1" marcelstoer/nodemcu-build
 		#docker run --rm -ti -v $(project_path)nodemcu-firmware/:/opt/nodemcu-firmware -e "IMAGE_NAME=beer-mcu" -e "FLOAT_ONLY=1" marcelstoer/nodemcu-build
 
 firmware_deploy:	deploy/nodemcu_float_beer-mcu.bin
