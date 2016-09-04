@@ -18,7 +18,7 @@ function printTemp(sensorNumber)
     end
   end
   display:setColor(255, 255, 255)
-  display:drawString(lineX[sensorNumber], lineY[sensorNumber], 1, temp)
+  display:drawString(lineX[sensorNumber], lineY[sensorNumber], 0, temp)
 end
 
 function readFakeTemp()
@@ -41,28 +41,33 @@ function setup()
 -- outputs
   gpio.mode(out1, gpio.OUTPUT)
   gpio.mode(out2, gpio.OUTPUT)
+
+  gpio.write(out1, gpio.HIGH)
+  gpio.write(out2, gpio.HIGH)
 -- display
   spi.setup(1, spi.MASTER, spi.CPOL_LOW, spi.CPHA_LOW, spi.DATABITS_8, 8)
   display = ucg.ili9341_18x240x320_hw_spi(disp_cs, disp_dc)
   display:begin(ucg.FONT_MODE_SOLID)
+  display:setRotate270()
   display:clearScreen()
   display:setFont(ucg.font_ncenR14_hr)
 
   local displayHeight = display:getWidth()
+  local displayWidth = display:getHeight()
   local ascent = display:getFontAscent()
   local descent = display:getFontDescent()
-  lineHeight = ascent - descent
-  lineX = {}
-  lineX[1] = displayHeight - ascent
-  lineX[2] = displayHeight - ascent - lineHeight
   local line1static = "temp1 = "
   local line2static = "temp2 = "
+  lineHeight = ascent - descent
+  lineX = {}
+  lineX[1] = display:getStrWidth(line1static)
+  lineX[2] = display:getStrWidth(line2static)
   lineY = {}
-  lineY[1] = display:getStrWidth(line1static)
-  lineY[2] = display:getStrWidth(line2static)
+  lineY[1] = ascent
+  lineY[2] = ascent + lineHeight
   dynamicWidth = display:getStrWidth("999.9C")
-  display:drawString(lineX[1], 0, 1, line1static)
-  display:drawString(lineX[2], 0, 1, line2static)
+  display:drawString(0, lineY[1], 0, line1static)
+  display:drawString(0, lineY[2], 0, line2static)
 -- temperature sensors
   readTemp = {}
 
