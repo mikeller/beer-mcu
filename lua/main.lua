@@ -1,32 +1,37 @@
 function main_loop()
-  tmr.alarm(0, 1000, 1, readTemps)
+  tmr.alarm(0, 1000, 1, updateDisplay)
 end
 
-function readTemps()
-  printTemp(1)
-  printTemp(2)
+function updateDisplay()
+  local line = {}
+  line[1] = printTemp(1) .. ", " .. printTemp(2)
+
+  local tm = rtctime.epoch2cal(rtctime.get())
+  line[2] = timeName .. string.format("%04d/%02d/%02d %02d:%02d:%02d", tm["year"], tm["mon"], tm["day"], tm["hour"], tm["min"], tm["sec"]) .. " UTC"
+
+  display:setColor(0, 0, 0)
+  display:drawBox(0, 2 * lineHeight, displayWidth, 2 * lineHeight)
+  display:setColor(255, 255, 255)
+  display:drawString(lineX[1], lineY[1], 0, line[1])
+  display:drawString(lineX[2], lineY[2], 0, line[2])
 end
 
 function printTemp(sensorNumber)
-  display:setColor(0, 0, 0)
-  display:drawBox(lineX[sensorNumber], lineY[sensorNumber], lineHeight, dynamicWidth)
-  local temp = "?"
-  if (sensorAddrs[sensorNumber]) then
-    local tempVal = readTemp[sensorNumber](sensorNumber)
-    if (tempVal) then
-      temp = string.format("%.1fC", tempVal)
-    end
+  local tempText
+  local temp = readTemp(sensorNumber)
+  if (temp) then
+    tempText = tempName[sensorNumber] .. string.format("%.1fC", temp)
   end
-  display:setColor(255, 255, 255)
-  display:drawString(lineX[sensorNumber], lineY[sensorNumber], 0, temp)
+
+  return tempText
 end
 
-function readFakeTemp()
-  return adc.read(0) / 16
-end
-
-function readDsTemp(sensorNumber)
-  return ds.read(sensorAddrs[sensorNumber])
+function readTemp(sensorNumber)
+  local tempVal
+  if (sensorAddrs[sensorNumber]) then
+    tempVal = ds.read(sensorAddrs[sensorNumber])
+  end
+  return tempVal
 end
 
 function setup()
@@ -50,32 +55,27 @@ function setup()
   display:begin(ucg.FONT_MODE_SOLID)
   display:setRotate270()
   display:clearScreen()
-  display:setFont(ucg.font_ncenR14_hr)
+  display:setFont(ucg.font_helvB12_hr)
+  display:setColor(1, 0, 0, 0)
 
-  local displayHeight = display:getWidth()
-  local displayWidth = display:getHeight()
+  displayWidth = display:getWidth()
   local ascent = display:getFontAscent()
   local descent = display:getFontDescent()
-  local line1static = "temp1 = "
-  local line2static = "temp2 = "
   lineHeight = ascent - descent
   lineX = {}
-  lineX[1] = display:getStrWidth(line1static)
-  lineX[2] = display:getStrWidth(line2static)
+  lineX[1] = 0
+  lineX[2] = 0
   lineY = {}
-  lineY[1] = ascent
-  lineY[2] = ascent + lineHeight
-  dynamicWidth = display:getStrWidth("999.9C")
-  display:drawString(0, lineY[1], 0, line1static)
-  display:drawString(0, lineY[2], 0, line2static)
+  lineY[1] = lineHeight
+  lineY[2] = 2 * lineHeight
+  tempName = {}
+  tempName[1] = "In: "
+  tempName[2] = "Out: "
+  timeName = "Time: "
 -- temperature sensors
-  readTemp = {}
-
   ds = require("ds18b20")
   ds.setup(onewire)
   sensorAddrs = ds.addrs()
-  readTemp[1] = readDsTemp
-  readTemp[2] = readDsTemp
 end
 
 dofile("setup.lua")
