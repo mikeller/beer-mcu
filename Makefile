@@ -2,13 +2,20 @@ project_path := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
 .PHONY:		all lua firmware firmware_build firmware_deploy
 
-all:		firmware lua
+all:		firmware lua reset
 
-lua:		deploy/ds18b20.lua deploy/main.lua deploy/setup.lua deploy/init.lua
+reset:
+		echo "node.restart()" > /dev/ttyUSB0
+
+lua:		deploy/ds18b20.lua deploy/config.lua deploy/config.lua deploy/main.lua deploy/setup.lua deploy/init.lua
 
 deploy/setup.lua:	lua/setup.lua
 		luatool/luatool/luatool.py -b 115200 -f lua/setup.lua && \
 		touch deploy/setup.lua
+
+deploy/config.lua:	lua/config.lua
+		luatool/luatool/luatool.py -b 115200 -f lua/config.lua && \
+		touch deploy/config.lua
 
 deploy/main.lua:	lua/main.lua
 		luatool/luatool/luatool.py -b 115200 -f lua/main.lua && \
@@ -33,5 +40,5 @@ firmware_deploy:	deploy/nodemcu_float_beer-mcu.bin
 
 deploy/nodemcu_float_beer-mcu.bin:	nodemcu-firmware/bin/nodemcu_float_beer-mcu.bin
 		nodemcu-firmware/tools/esptool.py write_flash -fm dio -fs 32m 0x00000 nodemcu-firmware/bin/nodemcu_float_beer-mcu.bin && \
-		rm deploy/*.lua && \
+		rm -f deploy/*.lua && \
 		touch deploy/nodemcu_float_beer-mcu.bin

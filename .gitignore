@@ -40,3 +40,6 @@ luac.out
 *.hex
 
 deploy
+
+bin/
+lua/config.lua
