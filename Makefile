@@ -7,11 +7,15 @@ all:		firmware lua reset
 reset:
 		echo "node.restart()" > /dev/ttyUSB0
 
-lua:		deploy/ds18b20.lua deploy/config.lua deploy/config.lua deploy/main.lua deploy/setup.lua deploy/init.lua
+lua:		deploy/ds18b20.lua deploy/config.lua deploy/config.lua deploy/main.lua deploy/networking.lua deploy/data_exchange.lua deploy/init.lua
 
-deploy/setup.lua:	lua/setup.lua
-		luatool/luatool/luatool.py -b 115200 -f lua/setup.lua && \
-		touch deploy/setup.lua
+deploy/data_exchange.lua:	lua/data_exchange.lua
+		luatool/luatool/luatool.py -b 115200 -f lua/data_exchange.lua && \
+		touch deploy/data_exchange.lua
+
+deploy/networking.lua:	lua/networking.lua
+		luatool/luatool/luatool.py -b 115200 -f lua/networking.lua && \
+		touch deploy/networking.lua
 
 deploy/config.lua:	lua/config.lua
 		luatool/luatool/luatool.py -b 115200 -f lua/config.lua && \

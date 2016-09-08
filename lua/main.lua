@@ -3,54 +3,34 @@ function main_loop()
 end
 
 function update()
-    local data = {}
-    data.temp = {}
-    data.temp[1] = readTemp(1)
-    data.temp[2] = readTemp(2)
-    data.timestamp = rtctime.get()
+    local data = {
+        temp = {
+            readTemp(1),
+            readTemp(2)
+        },
+        heater = 0,
+        timestamp = rtctime.get()
+    }
+
+    if (gpio.read(out1) == gpio.LOW) then
+        data.heater = 1
+    end
 
     updateDisplay(data)
 
     if (data.timestamp - 60 > lastTimestamp) then
         lastTimestamp = data.timestamp
         
-        sendData(data)
-    end
-end
-
-function sendData(data)
-    local url = "http://api.devicehub.net/v2/project/" .. config.projectNumber .. "/device/" .. config.deviceUuid .. "/sensor/"
-    local apiKey = "X-ApiKey: " .. config.apiKey .. "\r\nContent-Type: application/json\r\n"
-
-    local dataObject = {
-        value = data.temp[1],
-        timestamp = data.timestamp
-    }
-    local body = cjson.encode(dataObject)
-    http.post(url .. config.sensor1Name .. "/data", apiKey, body, checkResult)
-    
-    dataObject.value = data.temp[2]
-    local body = cjson.encode(dataObject)
-    http.post(url .. config.sensor2Name .. "/data", apiKey, body, checkResult)
-
-    local timestamp = data.timestamp
-    function checkResult(code, data)
-        if (code < 0) then
-            print("HTTP request failed: " .. code)
-        else
-            print("HTTP request successful: " .. code .. ", " .. data)
-
-            local result = cjson.decode(data)
-            if (result.request_status == 1) then
-                lastTimestamp = timestamp
-            end
-        end
+        dataExchange.SendData(data)
     end
 end
 
 function updateDisplay(data)
     local line = {}
     line[1] = printTemp(data.temp, 1) .. ", " .. printTemp(data.temp, 2)
+    if (data.heater) then
+        line[1] = line[1] .. ", HEATING"
+    end
 
     local tm = rtctime.epoch2cal(data.timestamp)
     line[2] = timeName .. string.format("%04d/%02d/%02d %02d:%02d:%02d", tm["year"], tm["mon"], tm["day"], tm["hour"], tm["min"], tm["sec"]) .. " UTC"
@@ -63,7 +43,7 @@ function updateDisplay(data)
 end
 
 function printTemp(temp, sensorNumber)
-    local tempText
+    local tempText = ""
     if (temp[sensorNumber]) then
         tempText = tempName[sensorNumber] .. string.format("%.1fC", temp[sensorNumber])
     end
@@ -79,8 +59,22 @@ function readTemp(sensorNumber)
     return tempVal
 end
 
+function HeaterCallback(state)
+    if (state == 0) then
+        gpio.write(out1, gpio.HIGH)
+    else 
+        gpio.write(out1, gpio.LOW)
+    end
+end
+
 function setup()
     dofile("config.lua")
+    
+    local networking = loadfile("networking.lua")()
+    dataExchange = loadfile("data_exchange.lua")()
+
+    networking.Setup()
+
 -- ports
     out1 = 0
     out2 = 1
@@ -89,12 +83,14 @@ function setup()
     local disp_cs = 6
     local disp_mosi = 7
     local disp_dc = 8
+
 -- outputs
     gpio.mode(out1, gpio.OUTPUT)
     gpio.mode(out2, gpio.OUTPUT)
 
     gpio.write(out1, gpio.HIGH)
     gpio.write(out2, gpio.HIGH)
+
 -- display
     spi.setup(1, spi.MASTER, spi.CPOL_LOW, spi.CPHA_LOW, spi.DATABITS_8, 8)
     display = ucg.ili9341_18x240x320_hw_spi(disp_cs, disp_dc)
@@ -118,15 +114,17 @@ function setup()
     tempName[1] = "Fermenter: "
     tempName[2] = "Ambient: "
     timeName = "Time: "
+
 -- temperature sensors
     ds = require("ds18b20")
     ds.setup(onewire)
     sensorAddrs = ds.addrs()
+
 -- time
     lastTimestamp = 0
-end
 
-dofile("setup.lua")
+    dataExchange.Setup(HeaterCallback)
+end
 
 setup()
 

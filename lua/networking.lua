@@ -1,6 +1,17 @@
+local M = {}
+
 local ntpServer = "pool.ntp.org"
 
-function SetupNetwork()
+local enduser_setup = enduser_setup
+local wifi = wifi
+local sntp = sntp
+local rtctime = rtctime
+local tmr = tmr
+local print = print
+
+setfenv(1, M)
+
+function Setup()
   enduser_setup.start(
     function()
       print("Connected to wifi as: " .. wifi.sta.getip())
@@ -28,4 +39,4 @@ function SynchNtp()
   )
 end
 
-SetupNetwork()
+return M
