@@ -1,12 +1,20 @@
-function main_loop()
-    tmr.alarm(0, 1000, 1, update)
+function MainLoop()
+    local code, reason = node.bootreason()
+    local data = {
+        timestamp = rtctime.get(),
+        log = "Reboot. Code: " .. code .. " reason: " .. reason
+    }
+    dataExchange.SendData(data)
+
+    tmr.alarm(0, 1000, 1, Update)
 end
 
-function update()
+function Update()
+    DetectSensors()
     local data = {
         temp = {
-            readTemp(1),
-            readTemp(2)
+            ReadTemp(1),
+            ReadTemp(2)
         },
         heater = 0,
         timestamp = rtctime.get()
@@ -16,7 +24,7 @@ function update()
         data.heater = 1
     end
 
-    updateDisplay(data)
+    display.Update(data)
 
     if (data.timestamp - 60 > lastTimestamp) then
         lastTimestamp = data.timestamp
@@ -25,33 +33,7 @@ function update()
     end
 end
 
-function updateDisplay(data)
-    local line = {}
-    line[1] = printTemp(data.temp, 1) .. ", " .. printTemp(data.temp, 2)
-    if (data.heater) then
-        line[1] = line[1] .. ", HEATING"
-    end
-
-    local tm = rtctime.epoch2cal(data.timestamp)
-    line[2] = timeName .. string.format("%04d/%02d/%02d %02d:%02d:%02d", tm["year"], tm["mon"], tm["day"], tm["hour"], tm["min"], tm["sec"]) .. " UTC"
-
-    display:setColor(0, 0, 0)
-    display:drawBox(0, 2 * lineHeight, displayWidth, 2 * lineHeight)
-    display:setColor(255, 255, 255)
-    display:drawString(lineX[1], lineY[1], 0, line[1])
-    display:drawString(lineX[2], lineY[2], 0, line[2])
-end
-
-function printTemp(temp, sensorNumber)
-    local tempText = ""
-    if (temp[sensorNumber]) then
-        tempText = tempName[sensorNumber] .. string.format("%.1fC", temp[sensorNumber])
-    end
-
-    return tempText
-end
-
-function readTemp(sensorNumber)
+function ReadTemp(sensorNumber)
     local tempVal
     if (sensorAddrs[sensorNumber]) then
         tempVal = ds.read(sensorAddrs[sensorNumber])
@@ -67,13 +49,18 @@ function HeaterCallback(state)
     end
 end
 
-function setup()
+function DetectSensors()
+    if (not sensorAddrs or table.getn(sensorAddrs) < 2) then
+        sensorAddrs = ds.addrs()
+    end
+end
+
+function Setup()
     dofile("config.lua")
     
-    local networking = loadfile("networking.lua")()
-    dataExchange = loadfile("data_exchange.lua")()
-
-    networking.Setup()
+    local networking = assert(loadfile("networking.lua"))()
+    dataExchange = assert(loadfile("data_exchange.lua"))()
+    display = assert(loadfile("display.lua"))()
 
 -- ports
     out1 = 0
@@ -92,40 +79,20 @@ function setup()
     gpio.write(out2, gpio.HIGH)
 
 -- display
-    spi.setup(1, spi.MASTER, spi.CPOL_LOW, spi.CPHA_LOW, spi.DATABITS_8, 8)
-    display = ucg.ili9341_18x240x320_hw_spi(disp_cs, disp_dc)
-    display:begin(ucg.FONT_MODE_SOLID)
-    display:setRotate270()
-    display:clearScreen()
-    display:setFont(ucg.font_helvB12_hr)
-    display:setColor(1, 0, 0, 0)
-
-    displayWidth = display:getWidth()
-    local ascent = display:getFontAscent()
-    local descent = display:getFontDescent()
-    lineHeight = ascent - descent
-    lineX = {}
-    lineX[1] = 0
-    lineX[2] = 0
-    lineY = {}
-    lineY[1] = lineHeight
-    lineY[2] = 2 * lineHeight
-    tempName = {}
-    tempName[1] = "Fermenter: "
-    tempName[2] = "Ambient: "
-    timeName = "Time: "
+    display.Setup(disp_cs, disp_dc)
 
 -- temperature sensors
     ds = require("ds18b20")
     ds.setup(onewire)
-    sensorAddrs = ds.addrs()
+    DetectSensors()
 
--- time
     lastTimestamp = 0
 
-    dataExchange.Setup(HeaterCallback)
+    function DataExchangeSetup()
+        dataExchange.Setup(MainLoop, HeaterCallback)
+    end
+
+    networking.Setup(DataExchangeSetup)
 end
 
-setup()
-
-main_loop()
+Setup()
