@@ -1,7 +1,5 @@
 local M = {}
 
--- local url = "http://api.devicehub.net/v2/project/" .. config.projectNumber .. "/device/" .. config.deviceUuid .. "/"
--- local headers = "X-ApiKey: " .. config.apiKey .. "\r\nContent-Type: application/json\r\n"
 local endpoint = "/a/" .. config.apiKey .. "/p/" .. config.projectNumber .. "/d/" .. config.deviceUuid .. "/"
 local heaterTopic = endpoint .. "actuator/" .. config.heaterName .. "/state"
 local callback
@@ -11,7 +9,6 @@ local mqttClient
 local tmr = tmr
 local print = print
 local cjson = cjson
---local http = http
 local mqtt = mqtt
 local config = config
 local table = table
@@ -21,7 +18,6 @@ setfenv(1, M)
 function Setup(mainCallback, heaterCallback)
     if (heaterCallback) then
         callback = heaterCallback
---        tmr.alarm(2, 60 * 1000, 1, CheckHeater)
     end
 
     mqttClient = mqtt.Client("beerMcu", 120, "", "")
@@ -92,9 +88,6 @@ function HeaterCallback(message)
     if (result) then
         callback(result.state)
     end
-    -- if (result and table.getn(result) >= 1) then
-    --     callback(result[1].state)
-    -- end
 end
             
 function SendData(data)
@@ -107,26 +100,22 @@ function SendData(data)
     if (data.temp) then
         dataObject.value = data.temp[1]
         body = cjson.encode(dataObject)
-        -- http.post(url .. "sensor/" .. config.sensor1Name .. "/data", headers, body, CheckResult)
         success = mqttClient:publish(endpoint .. "sensor/" .. config.sensor1Name .. "/data", body, 0, 1, PublishCallback) and success
     
         dataObject.value = data.temp[2]
         body = cjson.encode(dataObject)
-        -- http.post(url .. "sensor/" .. config.sensor2Name .. "/data", headers, body, CheckResult)
         success = mqttClient:publish(endpoint .. "sensor/" .. config.sensor2Name .. "/data", body, 0, 1, PublishCallback) and success
     end
 
     if (data.heater) then
         dataObject.value = data.heater
         body = cjson.encode(dataObject)
-        -- http.post(url .. "sensor/" .. config.heaterName .. "/data", headers, body, CheckResult)
         success = mqttClient:publish(endpoint .. "sensor/" .. config.heaterName .. "/data", body, 0, 1, PublishCallback) and success
     end
 
     if (data.log) then
         dataObject.value = data.log
         body = cjson.encode(dataObject)
-        -- http.post(url .. "sensor/" .. config.logName .. "/data", headers, body, CheckResult)
         success = mqttClient:publish(endpoint .. "sensor/" .. config.logName .. "/data", body, 0, 1, PublishCallback) and success
     end
 
@@ -154,41 +143,6 @@ function SendData(data)
 
     function PublishCallback(client)
         print("mqtt client publish success")
-    end
-
-    function CheckResult(code, result)
-        if (code < 200 or code >= 300) then
-            local message = "HTTP request failed: " .. code
-            if (result) then
-                message = message .. ", result: " .. result
-            end
-
-            print(message)
-
-            if (not data.isBacklogged) then
-                data.log = message
-                data.isBacklogged = true
-                table.insert(backlog, data)
-            end
-        else
-            print("HTTP request successful: " .. code .. ", " .. result)
-
-            local result = cjson.decode(result)
-            if (result.request_status == 1) then
-                lastTimestamp = data.timestamp
-
-                local backlogSize = table.getn(backlog)
-                if (backlogSize > 0 and not data.isBacklogged) then
-                    print("Sending " .. backlogSize .. " backlogged messages.")
-
-                    while (table.getn(backlog) > 0) do
-                        backlogData = table.remove(backlog, 1)
-
-                        SendData(backlogData)
-                    end
-                end
-            end
-        end
     end
 end
 
