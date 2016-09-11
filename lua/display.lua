@@ -34,14 +34,14 @@ function Setup(csPin, dcPin)
     lineHeight = ascent - descent
     lineX = { 0, 0, 0 }
     lineY = {
-        lineHeight,
-        2 * lineHeight,
-        3 * lineHeight
+        ascent,
+        ascent + lineHeight,
+        ascent + 2 * lineHeight
     }
     lineColour = {
+        { 255, 255, 255 },
         { 255, 127, 80 },
-        { 255, 0, 0 },
-        { 255, 255, 255 }
+        { 255, 0, 0 }
     }
     tempName = {
         "Ferm: ",
@@ -53,13 +53,13 @@ end
 function Update(data)
     local tm = rtctime.epoch2cal(data.timestamp)
     local lines = {
+        string.format("%04d/%02d/%02d %02d:%02d:%02d", tm["year"], tm["mon"], tm["day"], tm["hour"], tm["min"], tm["sec"]) .. " UTC",
         PrintTemp(data.temp, 1) .. ", " .. PrintTemp(data.temp, 2),
-        "",
-        string.format("%04d/%02d/%02d %02d:%02d:%02d", tm["year"], tm["mon"], tm["day"], tm["hour"], tm["min"], tm["sec"]) .. " UTC"
+        ""
     }
 
     if (data.heater ~= 0) then
-        lines[2] = lines[2] .. heaterOn
+        lines[3] = lines[3] .. heaterOn
     end
 
     for index, line in pairs(lines) do
