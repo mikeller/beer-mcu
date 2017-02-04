@@ -35,15 +35,15 @@ function Setup(mainCallback, heaterCallback)
     end)
 
     mqttClient:on("message", function(client, topic, data) 
-        if (topic == heaterTopic) then
-            HeaterCallback(data)
-        end
-
         local message = "mqtt client message for '" .. topic .. "': "
         if data ~= nil then
             message = message .. data
         end
         print(message)
+
+        if (topic == heaterTopic) then
+            HeaterCallback(data)
+        end
     end)
 
     function DoConnect()
@@ -69,27 +69,13 @@ function Setup(mainCallback, heaterCallback)
     DoConnect()
 end
 
-function CheckHeater()
-    http.get(url .. "actuator/" .. config.heaterName .. "/state", headers, ProcessResult)
-end
-
-function ProcessResult(code, result)
-    if (code < 0) then
-        print("HTTP request failed: " .. code)
-    else
-        print("HTTP request successful: " .. code .. ", " .. result)
-
-        HeaterCallback(result)
-    end
-end
-
 function HeaterCallback(message)
     local result = cjson.decode(message)
     if (result) then
         callback(result.state)
     end
 end
-            
+
 function SendData(data)
     local dataObject = {
         timestamp = data.timestamp
