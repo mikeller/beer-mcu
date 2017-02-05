@@ -1,8 +1,12 @@
 local M = {}
 
 local endpoint = "/a/" .. config.apiKey .. "/p/" .. config.projectNumber .. "/d/" .. config.deviceUuid .. "/"
-local heaterTopic = endpoint .. "actuator/" .. config.heaterName .. "/state"
-local callback
+local heaterMainTopic = endpoint .. "actuator/" .. config.heaterMainInput .. "/state"
+local wortTempTargetTopic = endpoint .. "actuator/" .. config.wortTempTarget .. "/state"
+local wortTempHysteresisTopic = endpoint .. "actuator/" .. config.wortTempHysteresis .. "/state"
+local heaterCallback
+local wortTempTargetCallback
+local wortTempHysteresisCallback
 local backlog = {}
 local mqttClient
 
@@ -12,12 +16,21 @@ local cjson = cjson
 local mqtt = mqtt
 local config = config
 local table = table
+local tonumber = tonumber
 
 setfenv(1, M)
 
-function Setup(mainCallback, heaterCallback)
-    if (heaterCallback) then
-        callback = heaterCallback
+function Setup(mainCallback, newHeaterCallback, newWortTempTargetCallback, newWortTempHysteresisCallback)
+    if (newHeaterCallback) then
+        heaterCallback = newHeaterCallback
+    end
+
+    if (newWortTempTargetCallback) then
+        wortTempTargetCallback = newWortTempTargetCallback
+    end
+
+    if (newWortTempHysteresisCallback) then
+        wortTempHysteresisCallback = newWortTempHysteresisCallback
     end
 
     mqttClient = mqtt.Client("beerMcu", 120, "", "")
@@ -41,8 +54,12 @@ function Setup(mainCallback, heaterCallback)
         end
         print(message)
 
-        if (topic == heaterTopic) then
-            HeaterCallback(data)
+        if (topic == heaterMainTopic) then
+            DoCallback(heaterCallback, data)
+        elseif (topic == wortTempTargetTopic) then
+            DoCallback(wortTempTargetCallback, data)
+        elseif (topic == wortTempHysteresisTopic) then
+            DoCallback(wortTempHysteresisCallback, data)
         end
     end)
 
@@ -59,8 +76,16 @@ function Setup(mainCallback, heaterCallback)
     end
 
     function FinishSetup()
-        mqttClient:subscribe(endpoint .. "actuator/" .. config.heaterName .. "/state", 1, function(client)
-            print("mqtt client subscribe success")
+        mqttClient:subscribe(heaterMainTopic, 1, function(client)
+            print("mqtt client subscribed to  " .. heaterMainTopic)
+        end)
+
+        mqttClient:subscribe(wortTempTargetTopic, 1, function(client)
+            print("mqtt client subscribed to  " .. wortTempTargetTopic)
+        end)
+
+        mqttClient:subscribe(wortTempHysteresisTopic, 1, function(client)
+            print("mqtt client subscribed to  " .. wortTempHysteresisTopic)
         end)
 
         mainCallback()
@@ -69,11 +94,31 @@ function Setup(mainCallback, heaterCallback)
     DoConnect()
 end
 
-function HeaterCallback(message)
-    local result = cjson.decode(message)
-    if (result) then
-        callback(result.state)
+function DoCallback(callbackFunc, message)
+    if (callbackFunc) then
+        local result = cjson.decode(message)
+        if (result) then
+            local code = tonumber(result.state)
+            if (code) then
+                callbackFunc(code)
+            end
+        end
     end
+end
+
+function PublishSensor(sensorData, timestamp, sensorName)
+    local result = true
+
+    if (sensorData) then
+        local dataObject = {
+            timestamp = timestamp,
+            value = sensorData
+        }
+        local body = cjson.encode(dataObject)
+        result = mqttClient:publish(endpoint .. "sensor/" .. sensorName .. "/data", body, 0, 1, PublishCallback)
+    end
+
+    return result
 end
 
 function SendData(data)
@@ -83,27 +128,13 @@ function SendData(data)
     local body
     local success = true
 
-    if (data.temp) then
-        dataObject.value = data.temp[1]
-        body = cjson.encode(dataObject)
-        success = mqttClient:publish(endpoint .. "sensor/" .. config.sensor1Name .. "/data", body, 0, 1, PublishCallback) and success
-    
-        dataObject.value = data.temp[2]
-        body = cjson.encode(dataObject)
-        success = mqttClient:publish(endpoint .. "sensor/" .. config.sensor2Name .. "/data", body, 0, 1, PublishCallback) and success
-    end
+    success = PublishSensor(data.wortTemp, data.timestamp, config.wortTempSensor) and success
 
-    if (data.heater) then
-        dataObject.value = data.heater
-        body = cjson.encode(dataObject)
-        success = mqttClient:publish(endpoint .. "sensor/" .. config.heaterName .. "/data", body, 0, 1, PublishCallback) and success
-    end
+    success = PublishSensor(data.ambientTemp, data.timestamp, config.ambientTempSensor) and success
 
-    if (data.log) then
-        dataObject.value = data.log
-        body = cjson.encode(dataObject)
-        success = mqttClient:publish(endpoint .. "sensor/" .. config.logName .. "/data", body, 0, 1, PublishCallback) and success
-    end
+    success = PublishSensor(data.heaterState, data.timestamp, config.heaterOnSensor) and success
+
+    success = PublishSensor(data.log, data.timestamp, config.logOutput) and success
 
     if (success) then
         lastTimestamp = data.timestamp

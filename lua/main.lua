@@ -1,42 +1,68 @@
-function MainLoop()
+function Main()
     local code, reason = node.bootreason()
-    local logData = {
-        timestamp = rtctime.get(),
-        log = "Reboot. Code: " .. code .. " reason: " .. reason
-    }
-    dataExchange.SendData(logData)
+    Log("Reboot. Code: " .. code .. " reason: " .. reason)
 
-    tmr.alarm(0, 1000, 1, UpdateSensorData)
+    tmr.alarm(0, 1000, 1, UpdateState)
 
     cron.schedule("* * * * *", SendSensorData)
+    cron.schedule("0 * * * *", function ()
+        Log("Ping")
+    end)
 end
 
-function ReadHeaterState()
-    if (gpio.read(out1) == gpio.LOW) then
-        sensorData.heater = 1
-    end
-end
+function Log(message)
+    print(message)
 
-function UpdateSensorData()
-    DetectSensors()
-    sensorData = {
-        temp = {
-            ReadTemp(1),
-            ReadTemp(2)
-        },
-        heater = 0,
-        timestamp = rtctime.get()
+    local logData = {
+        timestamp = rtctime.get(),
+        log = message
     }
+    dataExchange.SendData(logData)
+end
 
-    ReadHeaterState()
+function UpdateState()
+    DetectSensors()
 
-    display.Update(sensorData)
+   local newSensorData = {
+         wortTemp = ReadTemp(1),
+         ambientTemp = ReadTemp(2),
+         heaterState = ReadHeaterState(),
+         timestamp = rtctime.get()
+    }
+    sensorData = newSensorData
+    local newHeaterState = sensorData.heaterState
+
+    if (heaterMainSwitch) then
+        if (sensorData.wortTemp >= wortTempTarget) then
+            newHeaterState = 0
+        elseif (sensorData.wortTemp < wortTempTarget - wortTempHysteresis) then
+            newHeaterState = 1
+        end
+    else
+        newHeaterState = 0
+    end
+
+    if (newHeaterState ~= sensorData.heaterState) then
+        sensorData.heaterState = newHeaterState
+
+        UpdateHeater(sensorData.heaterState)
+
+        updateNeeded = true
+    end
+
+--    display.Update(sensorData, heaterMainSwitch, wortTempTarget, wortTempHysteresis)
+
+    if (updateNeeded) then
+        SendSensorData()
+    end
 end
 
 function SendSensorData()
     if (sensorData.timestamp) then
         dataExchange.SendData(sensorData)
     end
+
+    updateNeeded = false
 end
 
 function ReadTemp(sensorNumber)
@@ -48,20 +74,55 @@ function ReadTemp(sensorNumber)
     return tempVal
 end
 
-function HeaterCallback(state)
-    if (state == "0") then
-        gpio.write(out1, gpio.HIGH)
-
-        print("Switched heater off.")
-    else 
-        gpio.write(out1, gpio.LOW)
-
-        print("Switched heater on.")
+function ReadHeaterState()
+    local state = 0
+    if (gpio.read(out1) == gpio.LOW) then
+        state = 1
     end
 
-    ReadHeaterState()
+    return state
+end
 
-    SendSensorData()
+function HeaterCallback(code)
+    if (code == 1) then
+        heaterMainSwitch = true
+
+        Log("Heater main switch set to on.")
+    else
+        heaterMainSwitch = false
+
+        Log("Heater main switch set to off.")
+    end
+
+    updateNeeded = true
+end
+
+function WortTempTargetCallback(code)
+    wortTempTarget = code
+
+    Log("Wort temp target set to: " .. wortTempTarget)
+
+    updateNeeded = true
+end
+
+function WortTempHysteresisCallback(code)
+    wortTempHysteresis = code / 10
+
+    Log("Wort temp hysteresis set to: " .. wortTempHysteresis)
+
+    updateNeeded = true
+end
+
+function UpdateHeater(state)
+    if (state == 1) then
+        gpio.write(out1, gpio.LOW)
+
+        Log("Switched heater on.")
+    else
+        gpio.write(out1, gpio.HIGH)
+
+        Log("Switched heater off.")
+    end
 end
 
 function DetectSensors()
@@ -72,12 +133,16 @@ end
 
 function Setup()
     dofile("config.lua")
-    
+
     local networking = assert(loadfile("networking.lua"))()
     dataExchange = assert(loadfile("data_exchange.lua"))()
-    display = assert(loadfile("display.lua"))()
+--    display = assert(loadfile("display.lua"))()
 
     sensorData = {}
+    heaterMainSwitch = false
+    wortTempTarget = 20
+    wortTempHysteresis = 0.5
+    updateNeeded = false
 
 -- ports
     out1 = 0
@@ -96,7 +161,7 @@ function Setup()
     gpio.write(out2, gpio.HIGH)
 
 -- display
-    display.Setup(disp_cs, disp_dc)
+--    display.Setup(disp_cs, disp_dc)
 
 -- temperature sensors
     ds = require("ds18b20")
@@ -104,7 +169,7 @@ function Setup()
     DetectSensors()
 
     function DataExchangeSetup()
-        dataExchange.Setup(MainLoop, HeaterCallback)
+        dataExchange.Setup(Main, HeaterCallback, WortTempTargetCallback, WortTempHysteresisCallback)
     end
 
     networking.Setup(DataExchangeSetup)
